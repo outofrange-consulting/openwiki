@@ -3,9 +3,6 @@ type: integration
 title: Interactive Visualizer
 description: How the `openwiki visualize` command builds a link graph from wiki Markdown and OKF frontmatter, serves a live single-page reader over loopback HTTP, and exports a self-contained static site for hosting.
 tags: [visualizer, graph, static-export, cli, server, markdown-reader]
-verified:
-  - by: openwiki/0.7.2
-    at: 2026-10-13T08:15:00.712Z
 sources:
   - id: openwiki-source-5b54a58d1b51cd490b0e7162
     resource: repo://package.json
@@ -19,6 +16,8 @@ sources:
     resource: repo://src/visualize/client-lib.ts
   - id: openwiki-source-610ff51ff8da46ab065496a5
     resource: repo://src/visualize/client.ts
+  - id: openwiki-source-37e0e714b8257069ec052301
+    resource: repo://src/visualize/graph-types.ts
   - id: openwiki-source-d92f623adbf6b31c3542d58d
     resource: repo://src/visualize/graph.ts
   - id: openwiki-source-b0d5ccee7e5f7532bd8ed3f5
@@ -39,7 +38,10 @@ sources:
     resource: repo://test/visualize/visualize-client-lib.test.ts
   - id: openwiki-source-42403648c3f500ce06398039
     resource: repo://tsconfig.client.json
-generated: { by: "openwiki/0.5.2", at: "2026-09-22T08:09:45.637Z" }
+generated: { by: "openwiki/0.7.2", at: "2026-10-30T08:07:00.664Z" }
+verified:
+  - by: openwiki/0.7.2
+    at: 2026-10-30T08:07:00.664Z
 ---
 
 # Interactive Visualizer
@@ -279,17 +281,29 @@ Markdown and rendering in its shipped typeface.
 ## Build pipeline and assets
 
 The client TypeScript is compiled separately from the server code. The `build`
-script in `package.json` runs `tsc -p tsconfig.json`, then `tsc -p
-tsconfig.client.json` (which compiles `client.ts` and its imported `client-lib.ts`
-with DOM libs enabled), and finally `node scripts/copy-visualize-assets.cjs`. That
-last step exists because `styles.css` is a hand-authored asset TypeScript does not
-emit: the copy script explicitly copies `src/visualize/styles.css` into
-`dist/visualize/styles.css` and fails the build if the source is missing, the
-`dist/visualize` directory does not exist (a sign the build did not run first), or
-the copied file ends up missing or empty. At runtime `loadVisualizerAssets` reads
-`client.js`, `client-lib.js`, and `styles.css` from beside the compiled module in
-`dist`, which is why the copy step must run before the server or an export can serve
-the stylesheet.
+script in `package.json` invokes the pinned `typescript7` compiler twice —
+`node ./node_modules/typescript7/bin/tsc -p tsconfig.json` for the server, then
+`node ./node_modules/typescript7/bin/tsc -p tsconfig.client.json` (which compiles
+`client.ts` and the `client-lib.ts` it imports with DOM libs enabled) — and
+finally `node scripts/copy-visualize-assets.cjs`. That last step exists because
+`styles.css` is a hand-authored asset TypeScript does not emit: the copy script
+explicitly copies `src/visualize/styles.css` into `dist/visualize/styles.css` and
+fails the build if the source is missing, the `dist/visualize` directory does not
+exist (a sign the build did not run first), or the copied file ends up missing or
+empty. At runtime `loadVisualizerAssets` reads `client.js`, `client-lib.js`, and
+`styles.css` from beside the compiled module in `dist`, which is why the copy step
+must run before the server or an export can serve the stylesheet.
+
+The browser/Node split is anchored at the type layer. The graph shapes —
+`WikiNode`, `WikiEdge`, `WikiGraph`, and `WikiMeta` (the OKF frontmatter subset) —
+live in `src/visualize/graph-types.ts`, a module with no Node.js imports, so it is
+safe to pull into the DOM-libs browser bundle. `src/visualize/graph.ts` is the
+Node, `fs`-based loader that builds the graph from disk; it imports those types
+and re-exports them (`export type { WikiEdge, WikiGraph, WikiMeta, WikiNode } from
+"./graph-types.js"`) so server code can take the types from the loader. The browser
+client (`client.ts`) and its helpers (`client-lib.ts`) import their types only from
+`graph-types.ts`, never from `graph.ts`, which keeps the compiled browser bundle
+independent of the Node graph loader and its `fs` dependency.
 
 ## Related pages
 

@@ -64,8 +64,12 @@ sources:
     resource: repo://test/claims/core/mutations.test.ts
   - id: openwiki-source-b29e22b2bea9905b27e8e8e8
     resource: repo://test/claims/evidence/repository/resolver.test.ts
+  - id: openwiki-source-277e204ee3a395ea6b86cf14
+    resource: repo://test/cli/components/flush.ts
   - id: openwiki-source-61040321732e97cebb914633
     resource: repo://test/cli/components/markdown.test.tsx
+  - id: openwiki-source-204b8d11edac6ee7ca207981
+    resource: repo://test/cli/components/primitives.test.tsx
   - id: openwiki-source-f5f9f9512cc2874a9127f6e1
     resource: repo://test/cli/diagnostics/error-diagnostics.test.ts
   - id: openwiki-source-f66c47a0c6537f764ad36878
@@ -128,6 +132,10 @@ sources:
     resource: repo://test/openrouter-debug-fetch.test.ts
   - id: openwiki-source-2b788920f8a5c721b3430f6c
     resource: repo://test/openwiki-home.test.ts
+  - id: openwiki-source-b2b8fb38376a171a6364d058
+    resource: repo://test/setup/credentials/init-setup-entra.test.tsx
+  - id: openwiki-source-65aa5579cb930ecddfd2dd5e
+    resource: repo://test/setup/credentials/init-setup-langsmith-skip.test.tsx
   - id: openwiki-source-e3be493bc871948f42420690
     resource: repo://test/visualize/client-interaction.test.ts
   - id: openwiki-source-1904eaebd82125a3a3881dac
@@ -140,10 +148,10 @@ sources:
     resource: repo://tsconfig.json
   - id: openwiki-source-fbadcd8591b65031efaaedce
     resource: repo://vitest.config.ts
-generated: { by: "openwiki/0.7.2", at: "2026-10-13T08:15:00.712Z" }
+generated: { by: "openwiki/0.7.2", at: "2026-10-30T08:07:00.664Z" }
 verified:
   - by: openwiki/0.7.2
-    at: 2026-10-13T08:15:00.712Z
+    at: 2026-10-30T08:07:00.664Z
 ---
 
 # Testing Guide
@@ -165,7 +173,25 @@ while preserving complete failure output.
   exercised by rendering React components with `render` from
   `ink-testing-library` and asserting on the rendered frame (`lastFrame()`).
   These tests are the `.tsx` files under `test/cli/components/` and
-  `test/setup/credentials/`.
+  `test/setup/credentials/`. The CLI renderer is React 19-compatible
+  (`react: "^19.3.0"` is a runtime dependency, `ink-testing-library: "^4.0.0"`
+  a dev dependency): the Ink component tests (primitives, chat,
+  wiki-workspace-manager) and the setup-credential tests (init-setup-entra,
+  init-setup-langsmith-skip) mount and unmount components under the React 19
+  renderer. The test patterns themselves are unchanged — `render` +
+  `lastFrame()` — but a shared `flushInk` helper (`test/cli/components/flush.ts`)
+  sets `IS_REACT_ACT_ENVIRONMENT` and wraps the settle in `act` from `react` so
+  async Ink state transitions settle under the React 19 act renderer, and
+  `primitives.test.tsx` includes a mount/unmount guard
+  (`can mount and unmount with the supported React renderer`) that renders a
+  `StatusLine` and asserts `view.unmount()` does not throw.
+- **Optional peer dependencies: jsdom and mermaid.** `jsdom`
+  (`^29.1.1 || ^30.0.0`) and `mermaid` (`^11.16.0`) are declared as **optional**
+  `peerDependencies` (both marked `optional: true` in `peerDependenciesMeta`),
+  so a consumer that never runs the visualizer or Mermaid validation can install
+  without them. The local dev suite pins `jsdom@30.0.1` and `mermaid@11.17.2` as
+  dev dependencies so the jsdom-environment tests and the Mermaid DOM shim have
+  the exact versions they expect.
 - **No global config beyond `vitest.config.ts`.** Test discovery keeps Vitest's
   defaults; the only tuning is one discovery exclusion and the coverage block
   (see below).
@@ -192,10 +218,12 @@ flowchart TD
 
 The `pnpm test` gate: typecheck, then build, then the coverage run.
 
-1. **`typecheck`** runs `tsc --noEmit` against both the server project
+1. **`typecheck`** runs `tsc --noEmit` (via the pinned `typescript7` shim that
+   aliases `typescript@7.0.2`) against both the server project
    (`tsconfig.json`) and the browser/client project (`tsconfig.client.json`).
-2. **`build`** compiles both TypeScript projects and copies the visualize
-   client assets.
+2. **`build`** compiles both TypeScript projects (`tsc -p tsconfig.json` then
+   `tsc -p tsconfig.client.json`, both via the `typescript7` binary) and copies
+   the visualize client assets (`scripts/copy-visualize-assets.cjs`).
 3. **`coverage`** runs `vitest run --coverage`, which executes every test and
    produces a coverage report.
 
@@ -262,7 +290,8 @@ the application `src/` root). Two npm scripts wrap the harness:
   checkpoint-replay evaluation (replays a benchmark's Git history through
   OpenWiki and grades each frozen wiki snapshot).
 - `pnpm run eval:ledger:typecheck` — runs `tsc --noEmit -p
-  evals/ledger/tsconfig.json`, the focused typecheck for the LEDGER source.
+  evals/ledger/tsconfig.json` (via the `typescript7` binary), the focused
+  typecheck for the LEDGER source.
   (A `eval:ledger:reevaluate` script re-judges a completed run without
   re-invoking OpenWiki.)
 
@@ -1166,7 +1195,8 @@ file or directory, or `-t "<name>"` to scope by test name.
 - **X connector stream isolation:** `pnpm exec vitest run test/x-connector-stream-isolation.test.ts`.
 - **OpenRouter debug-fetch concurrency:** `pnpm exec vitest run test/openrouter-debug-fetch.test.ts`.
 - **A single named test:** `pnpm exec vitest run test/config -t "treats whitespace-only overrides as unset"`.
-- **Ink components:** `pnpm exec vitest run test/cli/components/`.
+- **Ink components (React 19 renderer):** `pnpm exec vitest run test/cli/components/` (primitives, chat, wiki-workspace-manager, run-view, markdown, panels, header, first-run-notice), or `pnpm exec vitest run test/cli/components/primitives.test.tsx -t "can mount and unmount with the supported React renderer"` for the React 19 mount/unmount guard.
+- **Setup wizard component tests (React 19 renderer):** `pnpm exec vitest run test/setup/credentials/init-setup-entra.test.tsx` (Entra-id mode wizard flow) or `pnpm exec vitest run test/setup/credentials/init-setup-langsmith-skip.test.tsx` (LangSmith skip flow) — both mount `InitSetup` under the React 19 act renderer via `flushInk`.
 - **Run-log helpers:** `pnpm exec vitest run test/cli/run-log/` (reducer/progress/summary/activity/tool-input), or `-t "retains concurrent worker progress fields"` for the concurrent-worker progress field pin.
 - **Generation skip/restore path:** `pnpm exec vitest run test/generation/repository-run.test.ts -t "restores the exact pending Markdown and Claims snapshot"` (snapshot restore + `finishRepositoryRun` with `skippedPageSnapshots`), `-t "restores a page snapshot without skipping the pending job"` (restore leaves the page pending), or `-t "resets an interrupted skipped job to pending on resume"` (resume re-queueing).
 - **Agent retry-before-skip:** `pnpm exec vitest run test/agent/repository-runner.test.ts -t "retries once when a worker exits without submitting and completes the page"` (recovered by retry) or `-t "skips a page worker that fails every attempt and continues the queue"` (give-up path).

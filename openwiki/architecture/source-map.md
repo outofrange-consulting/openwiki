@@ -102,16 +102,22 @@ sources:
     resource: repo://src/telemetry/index.ts
   - id: openwiki-source-04684180af5ec3c4b1911941
     resource: repo://src/telemetry/taxonomy.ts
+  - id: openwiki-source-ece93fbb8cb5e37f8a4eb963
+    resource: repo://src/visualize/client-lib.ts
+  - id: openwiki-source-610ff51ff8da46ab065496a5
+    resource: repo://src/visualize/client.ts
+  - id: openwiki-source-37e0e714b8257069ec052301
+    resource: repo://src/visualize/graph-types.ts
   - id: openwiki-source-d92f623adbf6b31c3542d58d
     resource: repo://src/visualize/graph.ts
   - id: openwiki-source-4d856d692c32be213c8c46b4
     resource: repo://src/visualize/server.ts
   - id: openwiki-source-d485c898eb60ebb173072eab
     resource: repo://test/agent/stream-redaction.test.ts
-generated: { by: "openwiki/0.7.1", at: "2026-10-07T08:10:39.081Z" }
+generated: { by: "openwiki/0.7.2", at: "2026-10-30T08:07:00.664Z" }
 verified:
-  - by: openwiki/0.7.1
-    at: 2026-10-07T08:10:39.081Z
+  - by: openwiki/0.7.2
+    at: 2026-10-30T08:07:00.664Z
 ---
 
 # Source Map
@@ -563,9 +569,19 @@ locations.
 ### visualize — local graph viewer
 
 Owns the interactive wiki/graph viewer. `src/visualize/server.ts`
-(`createRequestHandler`) serves the app; `graph.ts` builds the graph model;
-`page.ts`, `client.ts`, `client-lib.ts`, and `static-export.ts` render and export
-it.
+(`createRequestHandler`) serves the app; `graph.ts` (`buildGraph`) loads wiki
+pages from disk and builds the `WikiGraph` model; `page.ts`, `client.ts`,
+`client-lib.ts`, and `static-export.ts` render and export it.
+
+The graph type interfaces live in `src/visualize/graph-types.ts`, which holds
+the pure browser-safe types (`WikiNode`, `WikiEdge`, `WikiGraph`, `WikiMeta`)
+with no Node.js imports. The browser client (`client.ts`, `client-lib.ts`)
+imports only these types from `graph-types.ts`, so it can render the graph the
+server serializes without pulling in `graph.ts` (the Node `fs`-based loader).
+`graph.ts` re-exports those same types for server use. This is the
+tidy-wiki-compatibility boundary: server-side loading and browser-side
+rendering share one type definition without the browser bundle depending on
+`node:fs`/`node:path`.
 
 ### scheduling — recurring connector and generation runs
 
